@@ -1,0 +1,79 @@
+---
+
+- name: Check if this host is 'kubernetes_first_controlplane'
+  ansible.builtin.assert:
+    that: kubernetes_first_controlplane == inventory_hostname
+
+- name: Get current node version
+  ansible.builtin.shell: |
+    kubectl get node --no-headers -o custom-columns="VERSION:.status.nodeInfo.kubeletVersion"
+  environment:
+    KUBECONFIG: /etc/kubernetes/admin.conf
+  register: cluster_version
+
+- name: "End the playbook: first node already upgraded!"
+  ansible.builtin.meta: end_play
+  when: cluster_version.stdout is search(kubernetes_version)
+
+- name: Get kubeadm version
+  ansible.builtin.shell: kubeadm version -o short
+  register: kubeadm_version
+
+- name: Set kubeadm upgrade command
+  ansible.builtin.set_fact:
+    kubeadm_upgrade_cmd: "kubeadm upgrade apply {{ kubeadm_version.stdout | trim }}"
+
+- name: Verify upgrade plan
+  ansible.builtin.shell: kubeadm upgrade plan
+  register: verify_upgrade
+  failed_when: not verify_upgrade.stdout is search(kubeadm_upgrade_cmd)
+
+- name: Drain the node
+  ansible.builtin.shell: |
+    kubectl drain {{ ansible_hostname }} --ignore-daemonsets
+  environment: 
+    KUBECONFIG: /etc/kubernetes/admin.conf
+
+- name: Apply kubeadm upgrade command
+  ansible.builtin.shell: "{{ kubeadm_upgrade_cmd }} --yes"
+
+- name: Restart kubelet service
+  ansible.builtin.systemd_service:
+    name: kubelet
+    daemon_reload: true
+    state: restarted
+
+- name: Uncordon the node
+  ansible.builtin.shell: |
+    kubectl uncordon {{ ansible_hostname }}
+  environment: 
+    KUBECONFIG: /etc/kubernetes/admin.conf
+
+- name: Upgrade Calico CNI
+  ansible.builtin.shell: |
+    kubectl apply --server-side --force-conflicts -f {{ kubernetes_calico_cni_manifest_url }}/operator-crds.yaml
+    kubectl apply --server-side --force-conflicts -f {{ kubernetes_calico_cni_manifest_url }}/tigera-operator.yaml
+  environment:
+    KUBECONFIG: /etc/kubernetes/admin.conf
+  when: kubernetes_cni_plugin == "calico"
+
+- name: Wait for Calico deployment to be Ready
+  ansible.builtin.shell: |
+    kubectl wait pods --for=condition=Ready -l k8s-app=calico-node --namespace calico-system
+  environment:
+    KUBECONFIG: /etc/kubernetes/admin.conf
+  when: kubernetes_cni_plugin == "calico"
+
+- name: Upgrade Flannel CNI
+  ansible.builtin.shell: |
+    kubectl apply --server-side --force-conflicts -f {{ kubernetes_flannel_cni_manifest_url }}
+  environment:
+    KUBECONFIG: /etc/kubernetes/admin.conf
+  when: kubernetes_cni_plugin == "flannel"
+
+- name: Wait for Flannel deployment to be Ready
+  ansible.builtin.shell: |
+    kubectl wait pods --for=condition=Ready -l k8s-app=flannel --namespace kube-flannel
+  environment:
+    KUBECONFIG: /etc/kubernetes/admin.conf
+  when: kubernetes_cni_plugin == "flannel"

@@ -1,0 +1,4 @@
+---
+apiVersion: apiserver.config.k8s.io/v1
+kind: EncryptionConfiguration
+{{ kubernetes_apiserver_config.EncryptionConfiguration | to_nice_yaml }}

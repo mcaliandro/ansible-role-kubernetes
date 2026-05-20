@@ -1,0 +1,6 @@
+{% for package in kubernetes_packages %}
+Package: {{ package }}
+Pin: version {{ kubernetes_version }}.*
+Pin-Priority: 1000
+
+{% endfor %}

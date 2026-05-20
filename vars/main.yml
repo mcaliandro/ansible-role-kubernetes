@@ -1,0 +1,30 @@
+---
+
+kubernetes_packages:
+- kubeadm
+- kubelet
+- kubectl
+
+kubernetes_supported_cni_plugins:
+- calico
+- flannel
+- none
+
+# Package repositories
+kubernetes_apt_repo_url: "https://pkgs.k8s.io/core:/{{ kubernetes_release_channel }}:/v{{ kubernetes_version }}/deb/"
+kubernetes_apt_repo_key: "https://pkgs.k8s.io/core:/{{ kubernetes_release_channel }}:/v{{ kubernetes_version }}/deb/Release.key"
+
+# Configuration API
+kubernetes_configuration_path: /etc/kubernetes/conf.d
+kubernetes_apiserver_audit_log_path: /var/log/kubernetes/audit
+kubernetes_apiserver_admission_config_file: "{{ kubernetes_configuration_path }}/admission-config.yaml"
+kubernetes_apiserver_audit_policy_file: "{{ kubernetes_configuration_path }}/audit-policy.yaml"
+kubernetes_apiserver_encryption_config_file: "{{ kubernetes_configuration_path }}/encryption-config.yaml"
+
+# crictl configuration
+kubernetes_crictl_runtime_endpoint: unix:///var/run/containerd/containerd.sock
+kubernetes_crictl_image_endpoint: unix:///var/run/containerd/containerd.sock
+
+# CNI plugins manifests
+kubernetes_calico_cni_manifest_url: "https://raw.githubusercontent.com/projectcalico/calico/v{{ kubernetes_cni_plugin_version }}/manifests"
+kubernetes_flannel_cni_manifest_url: "https://github.com/flannel-io/flannel/releases/latest/download/kube-flannel.yml"

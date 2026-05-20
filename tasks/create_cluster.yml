@@ -1,0 +1,128 @@
+---
+
+- name: Check validity of input variables
+  ansible.builtin.assert:
+    that:
+      - kubernetes_first_controlplane == inventory_hostname
+      - kubernetes_cni_plugin in kubernetes_supported_cni_plugins
+
+- name: Check if variable 'kubernetes_cni_plugin_version' is required to be defined
+  ansible.builtin.assert:
+    that: kubernetes_cni_plugin_version is defined
+  when: kubernetes_cni_plugin == "calico"
+
+- name: Check if Kubernetes has already been initialized
+  ansible.builtin.stat:
+    path: /etc/kubernetes/admin.conf
+  register: admin_conf
+
+- name: "End the playbook on this host: Kubernetes cluster is already created!"
+  ansible.builtin.meta: end_play
+  when: admin_conf.stat.exists
+
+- name: Create etcd user
+  ansible.builtin.user:
+    name: etcd
+    create_home: false
+    shell: /sbin/nologin
+    system: true
+    state: present
+
+- name: Create etcd directory and assign permissions
+  ansible.builtin.file:
+    path: /var/lib/etcd
+    state: directory
+    recurse: yes
+    owner: etcd
+    group: etcd
+    mode: "0700"
+
+- name: Perform configuration tasks
+  block:
+    - name: Create /etc/kubernetes/conf.d directory
+      ansible.builtin.file:
+        path: /etc/kubernetes/conf.d
+        state: directory
+
+    - name: Create AdmissionConfiguration manifest
+      ansible.builtin.template:
+        src: etc/kubernetes/conf.d/admission-config.yaml.j2
+        dest: /etc/kubernetes/conf.d/admission-config.yaml"
+        mode: "0600"
+      when:
+        - kubernetes_apiserver_config.AdmissionConfiguration is defined
+        - kubernetes_apiserver_config.AdmissionConfiguration | length > 0
+
+    - name: Create AuditPolicy manifest
+      ansible.builtin.template:
+        src: etc/kubernetes/conf.d/audit-policy.yaml.j2
+        dest: /etc/kubernetes/conf.d/audit-policy.yaml
+        mode: "0600"
+      when:
+        - kubernetes_apiserver_config.AuditPolicy is defined
+        - kubernetes_apiserver_config.AuditPolicy | length > 0
+
+    - name: Create EncryptionConfig manifest
+      ansible.builtin.template:
+        src: etc/kubernetes/conf.d/encryption-config.yaml.j2
+        dest: /etc/kubernetes/conf.d/encryption-config.yaml
+        mode: "0600"
+      when: 
+        - kubernetes_apiserver_config.EncryptionConfiguration is defined
+        - kubernetes_apiserver_config.EncryptionConfiguration | length > 0
+  when: kubernetes_apiserver_config | length > 0
+
+- name: Create kubeadm config manifest
+  ansible.builtin.template:
+    src: etc/kubernetes/kubeadm-config.yaml.j2
+    dest: /etc/kubernetes/kubeadm-config.yaml
+    mode: "0600"
+
+- name: Run kubeadm init command
+  ansible.builtin.shell: |
+    kubeadm init --config /etc/kubernetes/kubeadm-config.yaml --upload-certs
+
+- name: Install Calico CNI
+  block:
+    - name: Copy Calico installation manifest
+      ansible.builtin.template:
+        src: manifests/install-calico.yaml.j2
+        dest: "{{ ansible_facts.user_dir }}/install-calico.yaml"
+
+    - name: Install Tigera Operator and Calico
+      ansible.builtin.shell: |
+        kubectl create -f {{ kubernetes_calico_cni_manifest_url }}/operator-crds.yaml
+        kubectl create -f {{ kubernetes_calico_cni_manifest_url }}/tigera-operator.yaml
+        kubectl create -f {{ ansible_facts.user_dir }}/install-calico.yaml
+      environment:
+        KUBECONFIG: /etc/kubernetes/admin.conf
+  when: kubernetes_cni_plugin == "calico"
+
+- name: Install Flannel CNI (latest version)
+  ansible.builtin.shell: "kubectl create -f {{ kubernetes_flannel_cni_manifest_url }}"
+  environment:
+    KUBECONFIG: /etc/kubernetes/admin.conf
+  when: kubernetes_cni_plugin == "flannel"
+
+- name: Wait for the control-plane to get ready (timeout=5min)
+  ansible.builtin.shell: |
+    kubectl get nodes {{ ansible_hostname }} --no-headers -o custom-columns='STATUS:status.conditions[?(@.type=="Ready")].status'
+  environment:
+    KUBECONFIG: /etc/kubernetes/admin.conf
+  register: node_ready
+  delay: 10
+  retries: 30
+  until: node_ready.stdout == "True"
+  when: kubernetes_cni_plugin != "none"
+
+- name: Fetch kubeconfig
+  ansible.builtin.fetch:
+    src: /etc/kubernetes/admin.conf
+    dest: "{{ inventory_dir }}/host_vars"
+
+- name: Task completed
+  ansible.builtin.debug:
+    msg:
+      - "Fetched kubeconfig file from host {{ inventory_hostname }}!"
+      - "Path={{ inventory_dir }}/host_vars/{{ inventory_hostname }}/etc/kubernetes/admin.conf"
+      - "Move this file in your home directory, e.g., ~/.kube/config"

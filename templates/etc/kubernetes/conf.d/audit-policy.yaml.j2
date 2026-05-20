@@ -1,0 +1,4 @@
+---
+apiVersion: audit.k8s.io/v1
+kind: Policy
+{{ kubernetes_apiserver_config.AuditPolicy | to_nice_yaml }}

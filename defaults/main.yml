@@ -1,0 +1,50 @@
+---
+
+# Role of the Kubernetes node
+kubernetes_role: control_plane
+
+# Kubernetes release and version
+kubernetes_release_channel: "stable"
+kubernetes_version: "1.35"
+
+# Specify the cluster name
+kubernetes_cluster_name: "kubernetes"
+
+# Specify who is the first control-plane of the cluster
+kubernetes_first_controlplane: master1.example.org
+
+# Networking configurations, defaults are compatible with Flannel CNI
+kubernetes_dns_domain: "cluster.local"
+kubernetes_pod_network: "10.244.0.0/16"
+kubernetes_service_network: "10.96.0.0/16"
+
+# By default, install Flannel CNI, the latest version available
+kubernetes_cni_plugin: flannel
+
+# If required by other CNI plugins, be sure to specify the proper version
+kubernetes_cni_plugin_version: ""
+
+# Configure kubeadm to setup a cluster with a single control-plane node
+kubernetes_kubeadm_config:
+  InitConfiguration:
+    localAPIEndpoint:
+      advertiseAddress: "{{ ansible_default_ipv4.address }}"
+  ClusterConfiguration:
+    clusterName: "{{ kubernetes_cluster_name }}"
+    networking:
+      dnsDomain: "{{ kubernetes_dns_domain }}"
+      podSubnet: "{{ kubernetes_pod_network }}"
+      serviceSubnet: "{{ kubernetes_service_network }}"
+  KubeletConfiguration:
+    cgroupDriver: systemd
+  KubeProxyConfiguration: {}
+
+# Specify the certificate key that will be used by kubeadm to join control-plane nodes
+# NOTE: this variable is required only in High-Availability setups
+kubernetes_kubeadm_certificate_key: ""
+
+# Configure API Server using Configuration APIs
+kubernetes_apiserver_config: {}
+#  AdmissionConfiguration: {}
+#  AuditPolicy: {}
+#  EncryptionConfiguration: {}

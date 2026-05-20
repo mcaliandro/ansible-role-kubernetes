@@ -1,0 +1,40 @@
+---
+
+- name: "Skip playbook on this host: labeled as 'kubernetes_first_controlplane'"
+  ansible.builtin.meta: end_host
+  when: kubernetes_first_controlplane == inventory_hostname
+
+- name: Get current node version
+  ansible.builtin.shell: |
+    kubectl get node {{ ansible_hostname }} --no-headers -o custom-columns="VERSION:.status.nodeInfo.kubeletVersion"
+  environment:
+    KUBECONFIG: /etc/kubernetes/admin.conf
+  delegate_to: "{{ kubernetes_first_controlplane }}"
+  register: cluster_version
+
+- name: "End the playbook on this host: node already upgraded!"
+  ansible.builtin.meta: end_host
+  when: cluster_version.stdout is search(kubernetes_version)
+
+- name: Drain the node
+  ansible.builtin.shell: |
+    kubectl drain {{ ansible_hostname }} --ignore-daemonsets
+  environment: 
+    KUBECONFIG: /etc/kubernetes/admin.conf
+  delegate_to: "{{ kubernetes_first_controlplane }}"
+
+- name: Apply upgrade node command
+  ansible.builtin.shell: kubeadm upgrade node
+
+- name: Restart kubelet service
+  ansible.builtin.systemd_service:
+    name: kubelet
+    daemon_reload: true
+    state: restarted
+
+- name: Uncordon the node
+  ansible.builtin.shell: |
+    kubectl uncordon {{ ansible_hostname }}
+  environment: 
+    KUBECONFIG: /etc/kubernetes/admin.conf
+  delegate_to: "{{ kubernetes_first_controlplane }}"

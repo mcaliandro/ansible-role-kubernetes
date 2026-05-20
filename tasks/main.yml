@@ -1,0 +1,73 @@
+---
+
+- name: Setup required kernel modules
+  community.general.modprobe:
+    name: "{{ item }}"
+    state: present
+    persistent: present
+  loop:
+    - overlay
+    - br_netfilter
+
+- name: Setup required sysctl parameters
+  ansible.posix.sysctl:
+    name: "{{ item }}"
+    value: "1"
+    state: present
+    sysctl_file: /etc/sysctl.d/kubernetes.conf
+  loop:
+    - net.ipv4.ip_forward
+    - net.bridge.bridge-nf-call-iptables
+    - net.bridge.bridge-nf-call-ip6tables
+
+- name: Disable swap for current session
+  ansible.builtin.shell: swapoff -a
+
+- name: Disable swap permanently, persist across reboots
+  ansible.builtin.replace:
+    path: /etc/fstab
+    regexp: '^(\s*)([^#\n]+\s+)(\w+\s+)swap(\s+.*)$'
+    replace: '#\1\2\3swap\4'
+    backup: yes
+  notify: Systemd reload
+
+- name: Add Kubernetes apt repository
+  ansible.builtin.deb822_repository:
+    name: kubernetes
+    types: deb
+    uris: "{{ kubernetes_apt_repo_url }}"
+    suites: "/"
+    signed_by: "{{ kubernetes_apt_repo_key }}"
+    state: present
+
+- name: Check if version pin on Kubernetes packages is applied
+  ansible.builtin.stat:
+    path: /etc/apt/preferences.d/kubernetes
+  register: apt_preference
+
+- name: Remove pin from Kubernetes packages
+  ansible.builtin.file:
+    path: /etc/apt/preferences.d/kubernetes
+    state: absent
+  when: apt_preference.stat.exists
+
+- name: Install Kubernetes packages
+  ansible.builtin.apt:
+    name: "{{ kubernetes_packages }}"
+    state: latest
+    update_cache: true
+
+- name: Install cri-tools package
+  ansible.builtin.apt:
+    name: cri-tools
+    state: latest
+
+- name: Configure crictl
+  ansible.builtin.template:
+    src: etc/crictl.yaml.j2
+    dest: /etc/crictl.yaml
+
+- name: Pin version on Kubernetes packages
+  ansible.builtin.template:
+    src: etc/apt/preferences.d/kubernetes.j2
+    dest: /etc/apt/preferences.d/kubernetes

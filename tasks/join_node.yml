@@ -1,0 +1,59 @@
+---
+
+- name: "Skip playbook on this host: labeled as 'kubernetes_first_controlplane'"
+  ansible.builtin.meta: end_host
+  when: kubernetes_first_controlplane == inventory_hostname
+
+- name: Create skeleton of kubeadm join command
+  ansible.builtin.shell: |
+    kubeadm token create --print-join-command
+  register: join_command
+  delegate_to: "{{ kubernetes_first_controlplane }}"
+
+- name: Add a control-plane node
+  block:
+    - name: Create etcd user on control-plane node
+      ansible.builtin.user:
+        name: etcd
+        create_home: false
+        shell: /sbin/nologin
+        system: true
+        state: present
+
+    - name: Create etcd directory and assign permissions
+      ansible.builtin.file:
+        path: /var/lib/etcd
+        state: directory
+        recurse: yes
+        owner: etcd
+        group: etcd
+        mode: "0700"
+
+    - name: Run kubeadm join command on control-plane node
+      ansible.builtin.shell: |
+        {{ join_command.stdout | trim }} --control-plane --certificate-key {{ kubernetes_kubeadm_certificate_key }}
+  when: kubernetes_role == "control_plane"
+
+- name: Add a worker node
+  block:
+    - name: Run kubeadm join command on worker node
+      ansible.builtin.shell: "{{ join_command.stdout | trim }}"
+
+    - name: Apply proper label to worker node
+      ansible.builtin.shell: |
+        kubectl label node {{ ansible_hostname }} node-role.kubernetes.io/worker=true
+      environment:
+        KUBECONFIG: /etc/kubernetes/admin.conf
+      delegate_to: "{{ kubernetes_first_controlplane }}"
+  when: kubernetes_role == "worker_node"
+
+- name: Wait for the node to get ready (timeout=5min)
+  ansible.builtin.shell: |
+    kubectl get nodes {{ ansible_hostname }} --no-headers -o custom-columns='STATUS:status.conditions[?(@.type=="Ready")].status'
+  environment:
+    KUBECONFIG: /etc/kubernetes/admin.conf
+  register: node_ready
+  delay: 10
+  retries: 30
+  until: node_ready.stdout == "True"
+  delegate_to: "{{ kubernetes_first_controlplane }}"
