@@ -8,10 +8,24 @@ This role is designed to bootstrap and manage Kubernetes clusters using `kubeadm
 Requirements
 ------------
 
-This role does not install any Container Runtime. It is recommended to use the Ansible role [geerlingguy.containerd](https://github.com/geerlingguy/ansible-role-containerd) for CRI installation.
+Ansible collections:
+- [ansible.posix](https://galaxy.ansible.com/ui/repo/published/ansible/posix/)
+- [community.general](https://galaxy.ansible.com/ui/repo/published/community/general/)
+
+**IMPORTANT**: This role does not install any Container Runtime. It has been tested with Ansible role [geerlingguy.containerd](https://github.com/geerlingguy/ansible-role-containerd). However, you are free to choose which one fits your need. 
+
 
 Role Variables
 --------------
+
+**NOTE**: In case you choose `geerlingguy.containerd` for CRI installation, then make sure to specify also the following variables:
+
+```yaml
+# Set systemd as cgroup driver in config.toml (required for Kubernetes)
+containerd_config_cgroup_driver_systemd: true
+# Install latest version of containerd package (easy upgrades)
+containerd_package_state: latest
+```
 
 A description of the settable variables for this role (see `defaults/main.yml`).
 
@@ -110,16 +124,7 @@ kubernetes_apiserver_config: {}
 Dependencies
 ------------
 
-Ansible collections:
-- [ansible.posix](https://galaxy.ansible.com/ui/repo/published/ansible/posix/)
-- [community.general](https://galaxy.ansible.com/ui/repo/published/community/general/)
-
-In case you are using the Ansible role [geerlingguy.containerd](https://github.com/geerlingguy/ansible-role-containerd) for CRI installation, then make sure to specify the role variables as follows:
-
-```yaml
-containerd_config_cgroup_driver_systemd: true
-containerd_package_state: latest
-```
+None.
 
 
 Example Inventory
@@ -129,44 +134,52 @@ Example Inventory
 # Super group of all kubernetes hosts (control-planes and workers)
 kubernetes:
   children:
-    kubernetes_control_plane:
-    kubernetes_worker:
-
-# Super group of all kubernetes control-plane nodes
-kubernetes_control_plane:
-  vars:
-    kubernetes_role: control_plane
-  children:
-    k8s_example_masters:
-
-# Super group of all kubernetes worker nodes
-kubernetes_worker:
-  vars:
-    kubernetes_role: worker
-  children:
-    k8s_example_workers:
+    k8s_example_cluster:
 
 # Group for k8s_example cluster
 k8s_example_cluster:
   children:
+    # control-plane nodes
     k8s_example_masters:
       hosts:
         master1.example.org:
+      vars:
+        kubernetes_role: control_plane
+    # worker nodes
     k8s_example_workers:
       hosts:
         worker1.example.org:
+      vars:
+        kubernetes_role: worker
 ```
 
 
 Example Playbooks
 -----------------
 
+### Basic playbook
+
+Install Kubernetes using this playbook.
+
+```yaml
+# Usage:
+#   ansible-playbook -l <cluster-group> kubernetes.yml
+---
+- name: Install Kubernetes
+  hosts: kubernetes
+  become: true
+
+  roles:
+    - mcaliandro.kubernetes
+```
+
+
 ### First install
 1. **Install Containerd and Kubernetes on hosts** using playbook `kubernetes/install.yml`.
 
     ```yaml
     # Usage:
-    #   ansible-playbook -l <group> playbooks/kubernetes.yml
+    #   ansible-playbook -l <cluster-group> kubernetes/install.yml
     ---
     - name: Install and configure a Kubernetes host
       hosts: kubernetes
@@ -184,7 +197,7 @@ Example Playbooks
     #   ansible-playbook -l <first-node> kubernetes/create_cluster.yml
     ---
     - name: Create a new Kubernetes cluster
-      hosts: kubernetes_control_plane
+      hosts: kubernetes
       become: true
 
       tasks:
@@ -220,7 +233,7 @@ Example Playbooks
 
     ```yaml
     # Usage:
-    #   ansible-playbook -l <group> playbooks/kubernetes.yml
+    #   ansible-playbook -l <cluster-group> playbooks/kubernetes.yml
     ---
     - name: Install and configure a Kubernetes host
       hosts: kubernetes
@@ -238,7 +251,7 @@ Example Playbooks
     #   ansible-playbook -l <first-node> kubernetes/upgrade_cluster.yml
     ---
     - name: Upgrade a Kubernetes cluster
-      hosts: kubernetes_control_plane
+      hosts: kubernetes
       become: true
 
       tasks:
@@ -269,7 +282,9 @@ Compatibility
 -------------
 
 This role has been tested on these Linux distributions:
+- Ubuntu Server LTS 22.04
 - Ubuntu Server LTS 24.04
+- Ubuntu Server LTS 26.04
 
 
 License
@@ -280,6 +295,4 @@ Apache License
 Author Information
 ------------------
 
-Matteo Caliandro
-
-<mcaliandro.dev@gmail.com>
+Created in 2026 by Matteo Caliandro, <mcaliandro.dev@gmail.com>
