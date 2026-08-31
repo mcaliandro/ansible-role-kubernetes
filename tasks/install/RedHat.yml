@@ -1,0 +1,36 @@
+---
+
+- name: Install dependencies
+  ansible.builtin.dnf:
+    name: dnf-plugin-versionlock
+    state: present
+
+- name: Add yum repository
+  ansible.builtin.yum_repository:
+    name: kubernetes
+    baseurl: "{{ kubernetes_yum_repo_url }}"
+    enabled: true
+    gpgkey: "{{ kubernetes_yum_repo_key }}"
+    gpgcheck: true
+    state: present
+
+- name: Remove lock from rpm packages
+  community.general.dnf_versionlock:
+    name: "{{ kubernetes_packages }}"
+    state: absent
+
+- name: Install rpm packages
+  ansible.builtin.dnf:
+    name: "{{ kubernetes_packages }}"
+    state: latest
+    update_cache: true
+
+- name: Install cri-tools rpm package
+  ansible.builtin.dnf:
+    name: cri-tools
+    state: latest
+
+- name: Apply lock on rpm packages
+  community.general.dnf_versionlock:
+    name: "{{ kubernetes_packages }}"
+    state: present

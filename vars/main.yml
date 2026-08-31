@@ -10,16 +10,22 @@ kubernetes_supported_cni_plugins:
 - flannel
 - none
 
-# Package repositories
+kubernetes_supported_os_family: ["Debian", "RedHat"]
+
+# APT package repository
 kubernetes_apt_repo_url: "https://pkgs.k8s.io/core:/{{ kubernetes_release_channel }}:/v{{ kubernetes_version }}/deb/"
-kubernetes_apt_repo_key: "https://pkgs.k8s.io/core:/{{ kubernetes_release_channel }}:/v{{ kubernetes_version }}/deb/Release.key"
+kubernetes_apt_repo_key: "{{ kubernetes_apt_repo_url }}/Release.key"
+
+# YUM package repository
+kubernetes_yum_repo_url: "https://pkgs.k8s.io/core:/{{ kubernetes_release_channel }}:/v{{ kubernetes_version }}/rpm/"
+kubernetes_yum_repo_key: "{{ kubernetes_yum_repo_url }}/repodata/repomd.xml.key"
 
 # Configuration API
-kubernetes_configuration_path: /etc/kubernetes/conf.d
-kubernetes_apiserver_audit_log_path: /var/log/kubernetes/audit
-kubernetes_apiserver_admission_config_file: "{{ kubernetes_configuration_path }}/admission-config.yaml"
-kubernetes_apiserver_audit_policy_file: "{{ kubernetes_configuration_path }}/audit-policy.yaml"
-kubernetes_apiserver_encryption_config_file: "{{ kubernetes_configuration_path }}/encryption-config.yaml"
+kubernetes_kubeadm_config_dir: /etc/kubernetes/kubeadm-config.d
+kubernetes_apiserver_audit_log_dir: /var/log/kubernetes/audit
+kubernetes_apiserver_admission_config_file: "{{ kubernetes_kubeadm_config_dir }}/admission-config.yaml"
+kubernetes_apiserver_audit_policy_file: "{{ kubernetes_kubeadm_config_dir }}/audit-policy.yaml"
+kubernetes_apiserver_encryption_config_file: "{{ kubernetes_kubeadm_config_dir }}/encryption-config.yaml"
 
 # crictl configuration
 kubernetes_crictl_runtime_endpoint: unix:///var/run/containerd/containerd.sock

@@ -6,7 +6,7 @@
 
 - name: Get current node version
   ansible.builtin.shell: |
-    kubectl get node {{ ansible_hostname }} --no-headers -o custom-columns="VERSION:.status.nodeInfo.kubeletVersion"
+    kubectl get node {{ ansible_facts.hostname }} --no-headers -o custom-columns="VERSION:.status.nodeInfo.kubeletVersion"
   environment:
     KUBECONFIG: /etc/kubernetes/admin.conf
   delegate_to: "{{ kubernetes_first_controlplane }}"
@@ -18,7 +18,7 @@
 
 - name: Drain the node
   ansible.builtin.shell: |
-    kubectl drain {{ ansible_hostname }} --ignore-daemonsets
+    kubectl drain {{ ansible_facts.hostname }} --ignore-daemonsets
   environment: 
     KUBECONFIG: /etc/kubernetes/admin.conf
   delegate_to: "{{ kubernetes_first_controlplane }}"
@@ -34,7 +34,7 @@
 
 - name: Uncordon the node
   ansible.builtin.shell: |
-    kubectl uncordon {{ ansible_hostname }}
+    kubectl uncordon {{ ansible_facts.hostname }}
   environment: 
     KUBECONFIG: /etc/kubernetes/admin.conf
   delegate_to: "{{ kubernetes_first_controlplane }}"

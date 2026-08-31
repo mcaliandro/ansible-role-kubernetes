@@ -39,15 +39,15 @@
 
 - name: Perform configuration tasks
   block:
-    - name: Create /etc/kubernetes/conf.d directory
+    - name: Create kubeadm configuration directory
       ansible.builtin.file:
-        path: /etc/kubernetes/conf.d
+        path: "{{ kubernetes_kubeadm_config_dir }}"
         state: directory
 
     - name: Create AdmissionConfiguration manifest
       ansible.builtin.template:
         src: etc/kubernetes/conf.d/admission-config.yaml.j2
-        dest: /etc/kubernetes/conf.d/admission-config.yaml"
+        dest: "{{ kubernetes_kubeadm_config_dir }}/admission-config.yaml"
         mode: "0600"
       when:
         - kubernetes_apiserver_config.AdmissionConfiguration is defined
@@ -56,7 +56,7 @@
     - name: Create AuditPolicy manifest
       ansible.builtin.template:
         src: etc/kubernetes/conf.d/audit-policy.yaml.j2
-        dest: /etc/kubernetes/conf.d/audit-policy.yaml
+        dest: "{{ kubernetes_kubeadm_config_dir }}/audit-policy.yaml"
         mode: "0600"
       when:
         - kubernetes_apiserver_config.AuditPolicy is defined
@@ -65,7 +65,7 @@
     - name: Create EncryptionConfig manifest
       ansible.builtin.template:
         src: etc/kubernetes/conf.d/encryption-config.yaml.j2
-        dest: /etc/kubernetes/conf.d/encryption-config.yaml
+        dest: "{{ kubernetes_kubeadm_config_dir }}/encryption-config.yaml"
         mode: "0600"
       when: 
         - kubernetes_apiserver_config.EncryptionConfiguration is defined
@@ -74,7 +74,7 @@
 
 - name: Create kubeadm config manifest
   ansible.builtin.template:
-    src: etc/kubernetes/kubeadm-config.yaml.j2
+    src: kubeadm-config.yaml.j2
     dest: /etc/kubernetes/kubeadm-config.yaml
     mode: "0600"
 
@@ -106,7 +106,7 @@
 
 - name: Wait for the control-plane to get ready (timeout=5min)
   ansible.builtin.shell: |
-    kubectl get nodes {{ ansible_hostname }} --no-headers -o custom-columns='STATUS:status.conditions[?(@.type=="Ready")].status'
+    kubectl get nodes {{ ansible_facts.hostname }} --no-headers -o custom-columns='STATUS:status.conditions[?(@.type=="Ready")].status'
   environment:
     KUBECONFIG: /etc/kubernetes/admin.conf
   register: node_ready

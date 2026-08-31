@@ -78,7 +78,7 @@ By default, kubeadm setups a cluster with a single control-plane node.
 kubernetes_kubeadm_config:
   InitConfiguration:
     localAPIEndpoint:
-      advertiseAddress: "{{ ansible_default_ipv4.address }}"
+      advertiseAddress: "{{ ansible_facts.default_ipv4.address }}"
   ClusterConfiguration:
     clusterName: "{{ kubernetes_cluster_name }}"
     networking:

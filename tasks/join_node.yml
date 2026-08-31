@@ -41,7 +41,7 @@
 
     - name: Apply proper label to worker node
       ansible.builtin.shell: |
-        kubectl label node {{ ansible_hostname }} node-role.kubernetes.io/worker=true
+        kubectl label node {{ ansible_facts.hostname }} node-role.kubernetes.io/worker=true
       environment:
         KUBECONFIG: /etc/kubernetes/admin.conf
       delegate_to: "{{ kubernetes_first_controlplane }}"
@@ -49,7 +49,7 @@
 
 - name: Wait for the node to get ready (timeout=5min)
   ansible.builtin.shell: |
-    kubectl get nodes {{ ansible_hostname }} --no-headers -o custom-columns='STATUS:status.conditions[?(@.type=="Ready")].status'
+    kubectl get nodes {{ ansible_facts.hostname }} --no-headers -o custom-columns='STATUS:status.conditions[?(@.type=="Ready")].status'
   environment:
     KUBECONFIG: /etc/kubernetes/admin.conf
   register: node_ready

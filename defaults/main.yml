@@ -28,7 +28,7 @@ kubernetes_cni_plugin_version: ""
 kubernetes_kubeadm_config:
   InitConfiguration:
     localAPIEndpoint:
-      advertiseAddress: "{{ ansible_default_ipv4.address }}"
+      advertiseAddress: "{{ ansible_facts.default_ipv4.address }}"
   ClusterConfiguration:
     clusterName: "{{ kubernetes_cluster_name }}"
     networking:

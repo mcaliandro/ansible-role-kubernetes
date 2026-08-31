@@ -30,7 +30,7 @@
 
 - name: Drain the node
   ansible.builtin.shell: |
-    kubectl drain {{ ansible_hostname }} --ignore-daemonsets
+    kubectl drain {{ ansible_facts.hostname }} --ignore-daemonsets
   environment: 
     KUBECONFIG: /etc/kubernetes/admin.conf
 
@@ -45,7 +45,7 @@
 
 - name: Uncordon the node
   ansible.builtin.shell: |
-    kubectl uncordon {{ ansible_hostname }}
+    kubectl uncordon {{ ansible_facts.hostname }}
   environment: 
     KUBECONFIG: /etc/kubernetes/admin.conf
 

@@ -1,0 +1,37 @@
+---
+
+- name: Add apt repository
+  ansible.builtin.deb822_repository:
+    name: kubernetes
+    types: deb
+    uris: "{{ kubernetes_apt_repo_url }}"
+    suites: "/"
+    signed_by: "{{ kubernetes_apt_repo_key }}"
+    state: present
+
+- name: Check if version pin on deb packages is applied
+  ansible.builtin.stat:
+    path: /etc/apt/preferences.d/kubernetes
+  register: apt_preference
+
+- name: Remove pin from deb packages
+  ansible.builtin.file:
+    path: /etc/apt/preferences.d/kubernetes
+    state: absent
+  when: apt_preference.stat.exists
+
+- name: Install deb packages
+  ansible.builtin.apt:
+    name: "{{ kubernetes_packages }}"
+    state: latest
+    update_cache: true
+
+- name: Install cri-tools deb package
+  ansible.builtin.apt:
+    name: cri-tools
+    state: latest
+
+- name: Pin version on deb packages
+  ansible.builtin.template:
+    src: apt-preferences/kubernetes.j2
+    dest: /etc/apt/preferences.d/kubernetes
