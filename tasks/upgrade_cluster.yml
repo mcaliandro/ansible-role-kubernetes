@@ -71,6 +71,32 @@
     KUBECONFIG: /etc/kubernetes/admin.conf
   when: kubernetes_cni_plugin == "flannel"
 
+- name: Check if patch to Flannel ConfigMap already exists
+  ansible.builtin.stat:
+    path: "{{ ansible_facts.user_dir }}/kube-flannel-cfg.patch.yaml"
+  register: flannel_patch
+  when: kubernetes_cni_plugin == "flannel"
+
+- name: Apply ConfigMap patch and reload the new configuration
+  block:
+    - name: Apply ConfigMap patch
+      ansible.builtin.shell: |
+        kubectl patch configmap/kube-flannel-cfg \
+          --namespace kube-flannel \
+          --type merge \
+          --patch-file {{ ansible_facts.user_dir }}/kube-flannel-cfg.patch.yaml
+      environment:
+        KUBECONFIG: /etc/kubernetes/admin.conf
+
+    - name: Restart Flannel DaemonSet to reload the new configuration
+      ansible.builtin.shell: |
+        kubectl rollout restart daemonset/kube-flannel-ds --namespace kube-flannel
+      environment:
+        KUBECONFIG: /etc/kubernetes/admin.conf
+  when:
+    - kubernetes_cni_plugin == "flannel"
+    - flannel_patch.stat.exists
+
 - name: Wait for Flannel deployment to be Ready
   ansible.builtin.shell: |
     kubectl wait pods --for=condition=Ready -l k8s-app=flannel --namespace kube-flannel

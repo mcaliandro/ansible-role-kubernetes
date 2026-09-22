@@ -104,6 +104,31 @@
     KUBECONFIG: /etc/kubernetes/admin.conf
   when: kubernetes_cni_plugin == "flannel"
 
+- name: Configure Flannel CNI if required
+  block:
+    - name: Render ConfigMap patch
+      ansible.builtin.template:
+        src: patches/kube-flannel-cfg.yaml.j2
+        dest: "{{ ansible_facts.user_dir }}/kube-flannel-cfg.patch.yaml"
+
+    - name: Apply ConfigMap patch
+      ansible.builtin.shell: |
+        kubectl patch configmap/kube-flannel-cfg \
+          --namespace kube-flannel \
+          --type merge \
+          --patch-file {{ ansible_facts.user_dir }}/kube-flannel-cfg.patch.yaml
+      environment:
+        KUBECONFIG: /etc/kubernetes/admin.conf
+
+    - name: Restart Flannel DaemonSet to reload the new configuration
+      ansible.builtin.shell: |
+        kubectl rollout restart daemonset/kube-flannel-ds -n kube-flannel
+      environment:
+        KUBECONFIG: /etc/kubernetes/admin.conf
+  when:
+    - kubernetes_cni_plugin == "flannel"
+    - kubernetes_pod_network != "10.244.0.0/16"
+
 - name: Wait for the control-plane to get ready (timeout=5min)
   ansible.builtin.shell: |
     kubectl get nodes {{ ansible_facts.hostname }} --no-headers -o custom-columns='STATUS:status.conditions[?(@.type=="Ready")].status'

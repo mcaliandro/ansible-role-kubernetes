@@ -1,0 +1,22 @@
+# Install and configure Flannel using Ansible role `mcaliandro.kubernetes`.
+# Activate VXLAN backend and configuring custom Pod network CIDR.
+# For more information, see: https://github.com/flannel-io/flannel
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  labels:
+    app: flannel
+    k8s-app: flannel
+    tier: node
+  name: kube-flannel-cfg
+  namespace: kube-flannel
+data:
+  net-conf.json: |
+    {
+      "Network": "{{ kubernetes_pod_network }}",
+      "EnableNFTables": false,
+      "Backend": {
+        "Type": "vxlan"
+      }
+    }
