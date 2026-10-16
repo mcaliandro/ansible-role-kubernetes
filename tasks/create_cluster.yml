@@ -143,11 +143,6 @@
 - name: Fetch kubeconfig
   ansible.builtin.fetch:
     src: /etc/kubernetes/admin.conf
-    dest: "{{ inventory_dir }}/host_vars"
-
-- name: Task completed
-  ansible.builtin.debug:
-    msg:
-      - "Fetched kubeconfig file from host {{ inventory_hostname }}!"
-      - "Path={{ inventory_dir }}/host_vars/{{ inventory_hostname }}/etc/kubernetes/admin.conf"
-      - "Move this file in your home directory, e.g., ~/.kube/config"
+    dest: "{{ inventory_dir }}/{{ inventory_hostname }}_kubeconfig"
+    flat: true
+  when: kubernetes_fetch_kubeconfig

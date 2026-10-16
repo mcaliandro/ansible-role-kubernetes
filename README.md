@@ -8,24 +8,16 @@ This role is designed to bootstrap and manage Kubernetes clusters using `kubeadm
 Requirements
 ------------
 
-Ansible collections:
-- [ansible.posix](https://galaxy.ansible.com/ui/repo/published/ansible/posix/)
-- [community.general](https://galaxy.ansible.com/ui/repo/published/community/general/)
+From [ansible.posix](https://galaxy.ansible.com/ui/repo/published/ansible/posix/) collection (version `2.2.2`):
+- [sysctl](https://docs.ansible.com/projects/ansible/latest/collections/ansible/posix/sysctl_module.html) module.
 
-**IMPORTANT**: This role does not install any Container Runtime. It has been tested with Ansible role [geerlingguy.containerd](https://github.com/geerlingguy/ansible-role-containerd). However, you are free to choose which one fits your need. 
+From [community.general](https://galaxy.ansible.com/ui/repo/published/community/general/) collection (version `13.4.0`):
+- [dnf_versionlock](https://docs.ansible.com/projects/ansible/latest/collections/community/general/dnf_versionlock_module.html) module;
+- [modprobe](https://docs.ansible.com/projects/ansible/latest/collections/community/general/modprobe_module.html) module.
 
 
 Role Variables
 --------------
-
-**NOTE**: In case you choose `geerlingguy.containerd` for CRI installation, then make sure to specify also the following variables:
-
-```yaml
-# Set systemd as cgroup driver in config.toml (required for Kubernetes)
-containerd_config_cgroup_driver_systemd: true
-# Install latest version of containerd package (easy upgrades)
-containerd_package_state: latest
-```
 
 A description of the settable variables for this role (see `defaults/main.yml`).
 
@@ -65,9 +57,15 @@ kubernetes_cni_plugin: flannel
 ```
 
 **CNI plugin version**: specify which CNI plugin version to install.
-**NOTE**: this variable is required when `kubernetes_cni_plugin == "calico"`.
+
+**NOTE**: this variable is required for Calico installation.
 ```yaml
 kubernetes_cni_plugin_version: ""
+```
+
+**Download `kubeconfig` file after the cluster is created**: use the fetch module to download the file using `inventory_dir` path as destination.
+```yaml
+kubernetes_fetch_kubeconfig: true
 ```
 
 **Custom kubeadm configuration**: specify the configuration of component that kubeadm deploys.
@@ -124,7 +122,22 @@ kubernetes_apiserver_config: {}
 Dependencies
 ------------
 
-None.
+**IMPORTANT**: This role does not specify any dependency to 3rd party roles.
+However, a CNI plugin must be already installed on the host(s) in order to install Kubernetes using this role. So, you are free to choose which CNI plugin to install for your Kubernetes cluster.
+
+This role has been tested together with [geerlingguy.containerd](https://github.com/geerlingguy/ansible-role-containerd) role, which installs `containerd` as default container runtime. `geerlingguy.containerd` role must run first in order to install Containerd before Kubernetes.
+
+Required variables:
+```yaml
+# Set systemd as cgroup driver in config.toml (required for Kubernetes)
+containerd_config_cgroup_driver_systemd: true
+```
+
+Optional variables:
+```yaml
+# Install latest version of containerd package (easy upgrades)
+containerd_package_state: latest
+```
 
 
 Example Inventory
@@ -144,12 +157,14 @@ k8s_example_cluster:
       hosts:
         master1.example.org:
       vars:
+        # mark the host(s) in this group as 'control-plane'
         kubernetes_role: control_plane
     # worker nodes
     k8s_example_workers:
       hosts:
         worker1.example.org:
       vars:
+        # mark the host(s) in this group as 'workers'
         kubernetes_role: worker
 ```
 
@@ -157,40 +172,30 @@ k8s_example_cluster:
 Example Playbooks
 -----------------
 
-### Basic playbook
-
-Install Kubernetes using this playbook.
+### Install and upgrade packages
+Install Kubernetes using playbook `kubernetes.yml`, the same is useful to upgrade packages to a new version.
+The playbook uses Ansible role [geerlingguy.containerd](https://github.com/geerlingguy/ansible-role-containerd) to install Containerd before Kubernetes.
 
 ```yaml
 # Usage:
 #   ansible-playbook -l <cluster-group> kubernetes.yml
 ---
-- name: Install Kubernetes
+- name: Install and upgrade packages on a Kubernetes host
   hosts: kubernetes
   become: true
 
   roles:
+    - role: geerlingguy.containerd
+      vars:
+        # Set systemd as cgroup driver in config.toml (required for Kubernetes)
+        containerd_config_cgroup_driver_systemd: true
+        # Optional: Install latest version of containerd package (easy upgrades)
+        containerd_package_state: latest
     - mcaliandro.kubernetes
 ```
 
-
-### First install
-1. **Install Containerd and Kubernetes on hosts** using playbook `kubernetes/install.yml`.
-
-    ```yaml
-    # Usage:
-    #   ansible-playbook -l <cluster-group> kubernetes/install.yml
-    ---
-    - name: Install and configure a Kubernetes host
-      hosts: kubernetes
-      become: true
-
-      roles:
-        - geerlingguy.containerd
-        - mcaliandro.kubernetes
-    ```
-
-2. **Create a new cluster** using playbook `kubernetes/create_cluster.yml`.
+### Create a new cluster
+1. **Create a new cluster** using playbook `kubernetes/create_cluster.yml`.
 
     ```yaml
     # Usage:
@@ -206,7 +211,7 @@ Install Kubernetes using this playbook.
             tasks_from: create_cluster.yml
     ```
 
-3. **Join nodes to an existing cluster** using playbook `kubernetes/join_node.yml`.
+2. **Join nodes to an existing cluster** using playbook `kubernetes/join_node.yml`.
 
     ```yaml
     # Usage:
@@ -229,20 +234,7 @@ Install Kubernetes using this playbook.
 
     **NOTE**: Skipping minor versions when upgrading is unsupported. For more info, see [Version Skew Policy](https://kubernetes.io/releases/version-skew-policy/).
 
-2. **Upgrade Containerd and Kubernetes on hosts** using playbook `kubernetes/install.yml`.
-
-    ```yaml
-    # Usage:
-    #   ansible-playbook -l <cluster-group> playbooks/kubernetes.yml
-    ---
-    - name: Install and configure a Kubernetes host
-      hosts: kubernetes
-      become: true
-
-      roles:
-        - geerlingguy.containerd
-        - mcaliandro.kubernetes
-    ```
+2. **Upgrade Containerd and Kubernetes on hosts** using playbook `kubernetes.yml` (see [Install and upgrade packages](#install-and-upgrade-packages)).
 
 3. **Upgrade a cluster** using playbook `kubernetes/upgrade_cluster.yml`.
 
@@ -250,7 +242,7 @@ Install Kubernetes using this playbook.
     # Usage:
     #   ansible-playbook -l <first-node> kubernetes/upgrade_cluster.yml
     ---
-    - name: Upgrade a Kubernetes cluster
+    - name: Upgrade a Kubernetes cluster using kubeadm
       hosts: kubernetes
       become: true
 
@@ -266,7 +258,7 @@ Install Kubernetes using this playbook.
     # Usage:
     #   ansible-playbook -l <host/group> kubernetes/upgrade_node.yml
     ---
-    - name: Upgrade Kubernetes cluster nodes
+    - name: Upgrade Kubernetes cluster nodes using kubeadm
       hosts: kubernetes
       become: true
       serial: 1

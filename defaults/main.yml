@@ -24,6 +24,9 @@ kubernetes_cni_plugin: flannel
 # If required by other CNI plugins, be sure to specify the proper version
 kubernetes_cni_plugin_version: ""
 
+# Whether to use or not the fetch to download 'kubeconfig' file
+kubernetes_fetch_kubeconfig: true
+
 # Configure kubeadm to setup a cluster with a single control-plane node
 kubernetes_kubeadm_config:
   InitConfiguration:
